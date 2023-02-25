@@ -149,7 +149,8 @@ async fn upload_paste(
         let sanitized_file_name = &file_name.replace('/', "");
 
         info!(
-            "uploading: id='{id}', file='{sanitized_file_name}', content_type='{content_type}', size={size}",
+            "uploading: id='{id}', file='{sanitized_file_name}', content_type='{content_type}', \
+             size={size}",
             size = data.len()
         );
 

@@ -1,1 +1,2 @@
+format_strings = true
 imports_granularity = "Module"
