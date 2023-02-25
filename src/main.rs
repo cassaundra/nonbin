@@ -106,10 +106,11 @@ async fn get_paste(
     State(s3_client): State<s3::Client>,
     Path((id, file_name)): Path<(String, String)>,
 ) -> crate::ApiResult<Response<body::Full<Bytes>>> {
+    let sanitized_file_name = sanitize_key(&file_name);
     let object = s3_client
         .get_object()
         .bucket(&config.s3_bucket)
-        .key(&format!("{id}/{file_name}"))
+        .key(&format!("{id}/{sanitized_file_name}"))
         .send()
         .await?;
 
@@ -138,15 +139,7 @@ async fn upload_paste(
         let data = field.bytes().await?;
 
         let id = generate_id(&words);
-
-        // Try and sanitize the file name so that the user can't do weird
-        // directory hacks. As far as I can tell, this is the only special
-        // character that we need to worry about, since the rest is handled by
-        // various middleware.
-        //
-        // Read more about special character handling in S3 keys:
-        // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
-        let sanitized_file_name = &file_name.replace('/', "");
+        let sanitized_file_name = sanitize_key(&file_name);
 
         info!(
             "uploading: id='{id}', file='{sanitized_file_name}', content_type='{content_type}', \
@@ -164,13 +157,23 @@ async fn upload_paste(
             .send()
             .await?;
 
-        let encoded_sanitized_file_name = encode(sanitized_file_name);
+        let encoded_sanitized_file_name = encode(&sanitized_file_name);
         Ok(Redirect::to(&format!(
             "/{id}/{encoded_sanitized_file_name}"
         )))
     } else {
         Err(ApiError::MissingFile)
     }
+}
+
+/// Sanitize a file name to thwart weird directory hacks.
+///
+/// Read more about special character handling in S3 keys:
+/// https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+fn sanitize_key(key: &str) -> String {
+    // As far as I can tell, this is the only special character that we need to
+    // worry about, since the rest is handled by various middleware.
+    key.replace('/', "_")
 }
 
 fn generate_id(words: &Words) -> String {
