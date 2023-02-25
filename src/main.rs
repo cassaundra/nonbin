@@ -8,7 +8,8 @@ use aws_config::retry::RetryConfig;
 use aws_sdk_s3 as s3;
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, FromRef, Multipart, Path, State};
-use axum::response::{Redirect, Response};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::{body, Router};
 use rand::seq::SliceRandom;
@@ -151,7 +152,7 @@ async fn upload_paste(
     State(words): State<Words>,
     State(s3_client): State<s3::Client>,
     mut multipart: Multipart,
-) -> crate::ApiResult<Redirect> {
+) -> crate::ApiResult<impl IntoResponse> {
     // just take the first multipart field
     if let Some(field) = multipart.next_field().await? {
         let file_name = field
@@ -184,9 +185,13 @@ async fn upload_paste(
             .await?;
 
         let encoded_sanitized_file_name = encode(&sanitized_file_name);
-        Ok(Redirect::to(&format!(
-            "/{id}/{encoded_sanitized_file_name}"
-        )))
+        Ok((
+            StatusCode::CREATED,
+            [(
+                header::LOCATION,
+                format!("/{id}/{encoded_sanitized_file_name}"),
+            )],
+        ))
     } else {
         Err(ApiError::MissingFile)
     }
