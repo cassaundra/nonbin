@@ -104,12 +104,12 @@ async fn index() -> &'static str {
 async fn get_paste(
     State(config): State<Config>,
     State(s3_client): State<s3::Client>,
-    Path((id, _file_name)): Path<(String, String)>,
+    Path((id, file_name)): Path<(String, String)>,
 ) -> crate::ApiResult<Response<body::Full<Bytes>>> {
     let object = s3_client
         .get_object()
         .bucket(&config.s3_bucket)
-        .key(&id)
+        .key(&format!("{id}/{file_name}"))
         .send()
         .await?;
 
@@ -139,23 +139,34 @@ async fn upload_paste(
 
         let id = generate_id(&words);
 
+        // Try and sanitize the file name so that the user can't do weird
+        // directory hacks. As far as I can tell, this is the only special
+        // character that we need to worry about, since the rest is handled by
+        // various middleware.
+        //
+        // Read more about special character handling in S3 keys:
+        // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+        let sanitized_file_name = &file_name.replace('/', "");
+
         info!(
-            "uploading: id='{id}', file='{file_name}', content_type='{content_type}', size={size}",
+            "uploading: id='{id}', file='{sanitized_file_name}', content_type='{content_type}', size={size}",
             size = data.len()
         );
 
         s3_client
             .put_object()
             .bucket(&config.s3_bucket)
-            .key(&id)
+            .key(&format!("{id}/{sanitized_file_name}"))
             .metadata("user-file-name", &file_name)
             .metadata("user-content-type", &content_type)
             .body(data.into())
             .send()
             .await?;
 
-        let encoded_file_name = encode(&file_name);
-        Ok(Redirect::to(&format!("/{id}/{encoded_file_name}")))
+        let encoded_sanitized_file_name = encode(sanitized_file_name);
+        Ok(Redirect::to(&format!(
+            "/{id}/{encoded_sanitized_file_name}"
+        )))
     } else {
         Err(ApiError::MissingFile)
     }
