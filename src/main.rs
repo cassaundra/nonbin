@@ -81,6 +81,8 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
+        .route("/:id", get(get_paste_bare))
+        .route("/:id/", get(get_paste_bare)) // hack
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(config.max_upload_size))
@@ -99,6 +101,30 @@ async fn main() -> anyhow::Result<()> {
 
 async fn index() -> &'static str {
     "TODO documentation"
+}
+
+async fn get_paste_bare(
+    State(config): State<Config>,
+    State(s3_client): State<s3::Client>,
+    Path(id): Path<String>,
+) -> crate::ApiResult<Redirect> {
+    let sanitized_id = sanitize_key(&id);
+
+    let list = s3_client
+        .list_objects_v2()
+        .bucket(&config.s3_bucket)
+        .prefix(&format!("{sanitized_id}/"))
+        .max_keys(1) // just take the first result
+        .send()
+        .await?;
+    if let Some(&[object]) = list.contents().as_ref() {
+        Ok(Redirect::permanent(&format!(
+            "/{key}",
+            key = object.key().unwrap()
+        )))
+    } else {
+        Err(crate::ApiError::PasteNotFound)
+    }
 }
 
 async fn get_paste(
