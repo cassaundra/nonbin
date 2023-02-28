@@ -2,9 +2,7 @@ use aws_sdk_s3 as s3;
 use axum::extract::multipart::MultipartError;
 use axum::http::{self, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use s3::types::SdkError;
-use serde::Serialize;
 use thiserror::Error;
 
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
@@ -48,10 +46,7 @@ impl IntoResponse for ApiError {
             ApiError::Other { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        let response = ErrorInfo {
-            message: format!("{self}"),
-        };
-        (status_code, Json(response)).into_response()
+        (status_code, format!("{self}")).into_response()
     }
 }
 
@@ -81,9 +76,4 @@ impl From<SdkError<s3::error::PutObjectError>> for ApiError {
             source: Box::new(value),
         }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorInfo {
-    message: String,
 }
