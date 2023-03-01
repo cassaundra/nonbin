@@ -11,7 +11,7 @@ use axum::extract::{DefaultBodyLimit, FromRef, Multipart, Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{body, Router};
+use axum::{body, Json, Router};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::Deserialize;
@@ -23,6 +23,9 @@ use urlencoding::encode;
 
 mod error;
 pub(crate) use error::{ApiError, ApiResult};
+
+mod types;
+use types::UploadPaste;
 
 #[derive(Clone, FromRef)]
 struct AppState {
@@ -188,12 +191,11 @@ async fn upload_paste(
             .await?;
 
         let encoded_sanitized_file_name = encode(&sanitized_file_name);
+        let path = format!("/{id}/{encoded_sanitized_file_name}");
         Ok((
             StatusCode::CREATED,
-            [(
-                header::LOCATION,
-                format!("/{id}/{encoded_sanitized_file_name}"),
-            )],
+            [(header::LOCATION, path.clone())],
+            Json(UploadPaste { id, path }),
         ))
     } else {
         Err(ApiError::MissingFile)
