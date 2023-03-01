@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -7,7 +8,7 @@ use anyhow::Context;
 use aws_config::retry::RetryConfig;
 use aws_sdk_s3 as s3;
 use axum::body::Bytes;
-use axum::extract::{DefaultBodyLimit, FromRef, Multipart, Path, State};
+use axum::extract::{DefaultBodyLimit, FromRef, Multipart, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
@@ -20,6 +21,7 @@ use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use urlencoding::encode;
+use uuid::Uuid;
 
 mod error;
 pub(crate) use error::{ApiError, ApiResult};
@@ -87,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
-        .route("/:id", get(get_paste_bare))
+        .route("/:id", get(get_paste_bare).delete(delete_paste))
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(config.max_upload_size))
@@ -166,6 +168,8 @@ async fn upload_paste(
         let data = field.bytes().await?;
 
         let id = generate_id(&words);
+        let delete_key = Uuid::new_v4().to_string();
+
         let sanitized_file_name = sanitize_key(&file_name);
 
         info!(
@@ -180,6 +184,7 @@ async fn upload_paste(
             .key(&id)
             .metadata("user-file-name", &file_name)
             .metadata("user-content-type", &content_type)
+            .metadata("delete-key", &delete_key)
             .body(data.into())
             .send()
             .await?;
@@ -189,10 +194,48 @@ async fn upload_paste(
         Ok((
             StatusCode::CREATED,
             [(header::LOCATION, path.clone())],
-            Json(UploadPaste { id, path }),
+            Json(UploadPaste {
+                id,
+                path,
+                delete_key,
+            }),
         ))
     } else {
         Err(ApiError::MissingFile)
+    }
+}
+
+async fn delete_paste(
+    State(config): State<Config>,
+    State(s3_client): State<s3::Client>,
+    Query(params): Query<HashMap<String, String>>,
+    Path(id): Path<String>,
+) -> crate::ApiResult<impl IntoResponse> {
+    let delete_key = params
+        .get("delete_key")
+        .ok_or_else(|| ApiError::MissingDeleteKey)?;
+
+    // try and fetch the actual delete key
+    let head_object = s3_client
+        .head_object()
+        .bucket(&config.s3_bucket)
+        .key(&id)
+        .send()
+        .await?;
+    if let Some(real_delete_key) = head_object.metadata().and_then(|m| m.get("delete-key")) {
+        if delete_key == real_delete_key {
+            s3_client
+                .delete_object()
+                .bucket(&config.s3_bucket)
+                .key(&id)
+                .send()
+                .await?;
+            Ok(())
+        } else {
+            Err(ApiError::WrongDeleteKey)
+        }
+    } else {
+        Err(ApiError::PasteNotFound)
     }
 }
 

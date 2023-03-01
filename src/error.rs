@@ -18,6 +18,10 @@ pub enum ApiError {
     MissingFileName,
     #[error("missing content type for multipart file")]
     MissingFileContentType,
+    #[error("missing delete key")]
+    MissingDeleteKey,
+    #[error("wrong delete key")]
+    WrongDeleteKey,
     #[error("error reading multipart data")]
     Multipart {
         #[from]
@@ -41,12 +45,22 @@ impl IntoResponse for ApiError {
             ApiError::MissingFile => StatusCode::BAD_REQUEST,
             ApiError::MissingFileName => StatusCode::BAD_REQUEST,
             ApiError::MissingFileContentType => StatusCode::BAD_REQUEST,
+            ApiError::MissingDeleteKey => StatusCode::BAD_REQUEST,
+            ApiError::WrongDeleteKey => StatusCode::UNAUTHORIZED,
             ApiError::Multipart { .. } => StatusCode::BAD_REQUEST,
             ApiError::Http { .. } => StatusCode::BAD_REQUEST,
             ApiError::Other { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status_code, format!("{self}")).into_response()
+    }
+}
+
+impl From<SdkError<s3::error::DeleteObjectError>> for ApiError {
+    fn from(source: SdkError<s3::error::DeleteObjectError>) -> Self {
+        ApiError::Other {
+            source: Box::new(source),
+        }
     }
 }
 
@@ -63,17 +77,21 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
 }
 
 impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
-    fn from(value: SdkError<s3::error::HeadObjectError>) -> Self {
-        ApiError::Other {
-            source: Box::new(value),
+    fn from(source: SdkError<s3::error::HeadObjectError>) -> Self {
+        let error = source.into_service_error();
+        match error.kind {
+            s3::error::HeadObjectErrorKind::NotFound(_) => ApiError::PasteNotFound,
+            _ => ApiError::Other {
+                source: Box::new(error),
+            },
         }
     }
 }
 
 impl From<SdkError<s3::error::PutObjectError>> for ApiError {
-    fn from(value: SdkError<s3::error::PutObjectError>) -> Self {
+    fn from(source: SdkError<s3::error::PutObjectError>) -> Self {
         ApiError::Other {
-            source: Box::new(value),
+            source: Box::new(source),
         }
     }
 }
