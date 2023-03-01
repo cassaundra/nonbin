@@ -30,7 +30,16 @@ mod types;
 use types::UploadPaste;
 
 /// The manual for the program in man page form.
-const MAN_PAGE: &'static str = include_str!("../assets/man.txt");
+const MAN_PAGE: &str = include_str!("../assets/man.txt");
+
+/// The S3 object metadata key for a paste's user-provided file name.
+const METADATA_USER_FILE_NAME: &str = "user-file-name";
+
+/// The S3 object metadata key for a paste's user-provided file name.
+const METADATA_USER_CONTENT_TYPE: &str = "user-content-type";
+
+/// The S3 object metadata key for a paste's delete key.
+const METADATA_DELETE_KEY: &str = "delete-key";
 
 #[derive(Clone, FromRef)]
 struct AppState {
@@ -127,7 +136,10 @@ async fn get_paste_bare(
         .send()
         .await?;
 
-    if let Some(file_name) = head_object.metadata().and_then(|m| m.get("user-file-name")) {
+    if let Some(file_name) = head_object
+        .metadata()
+        .and_then(|m| m.get(METADATA_USER_FILE_NAME))
+    {
         Ok(Redirect::permanent(&format!("/{id}/{file_name}")))
     } else {
         Err(ApiError::PasteNotFound)
@@ -182,9 +194,9 @@ async fn upload_paste(
             .put_object()
             .bucket(&config.s3_bucket)
             .key(&id)
-            .metadata("user-file-name", &file_name)
-            .metadata("user-content-type", &content_type)
-            .metadata("delete-key", &delete_key)
+            .metadata(METADATA_USER_FILE_NAME, &file_name)
+            .metadata(METADATA_USER_CONTENT_TYPE, &content_type)
+            .metadata(METADATA_DELETE_KEY, &delete_key)
             .body(data.into())
             .send()
             .await?;
@@ -222,7 +234,10 @@ async fn delete_paste(
         .key(&id)
         .send()
         .await?;
-    if let Some(real_delete_key) = head_object.metadata().and_then(|m| m.get("delete-key")) {
+    if let Some(real_delete_key) = head_object
+        .metadata()
+        .and_then(|m| m.get(METADATA_DELETE_KEY))
+    {
         if delete_key == real_delete_key {
             s3_client
                 .delete_object()
