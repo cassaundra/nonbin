@@ -16,6 +16,7 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::normalize_path::NormalizePathLayer;
 use tracing::info;
 use urlencoding::encode;
 
@@ -83,10 +84,10 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
         .route("/:id", get(get_paste_bare))
-        .route("/:id/", get(get_paste_bare)) // hack
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(config.max_upload_size))
+        .route_layer(NormalizePathLayer::trim_trailing_slash())
         .with_state(AppState {
             config,
             words,
