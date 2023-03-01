@@ -17,6 +17,7 @@ use rand::thread_rng;
 use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::normalize_path::NormalizePathLayer;
+use tower_http::trace::TraceLayer;
 use tracing::info;
 use urlencoding::encode;
 
@@ -87,6 +88,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(config.max_upload_size))
+        .layer(TraceLayer::new_for_http())
         .route_layer(NormalizePathLayer::trim_trailing_slash())
         .with_state(AppState {
             config,
