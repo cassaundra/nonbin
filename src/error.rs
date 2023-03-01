@@ -62,8 +62,8 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
     }
 }
 
-impl From<SdkError<s3::error::ListObjectsV2Error>> for ApiError {
-    fn from(value: SdkError<s3::error::ListObjectsV2Error>) -> Self {
+impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
+    fn from(value: SdkError<s3::error::HeadObjectError>) -> Self {
         ApiError::Other {
             source: Box::new(value),
         }

@@ -115,35 +115,29 @@ async fn get_paste_bare(
     State(s3_client): State<s3::Client>,
     Path(id): Path<String>,
 ) -> crate::ApiResult<Redirect> {
-    let sanitized_id = sanitize_key(&id);
-
-    let list = s3_client
-        .list_objects_v2()
+    let head_object = s3_client
+        .head_object()
         .bucket(&config.s3_bucket)
-        .prefix(&format!("{sanitized_id}/"))
-        .max_keys(1) // just take the first result
+        .key(&id)
         .send()
         .await?;
-    if let Some(&[object]) = list.contents().as_ref() {
-        Ok(Redirect::permanent(&format!(
-            "/{key}",
-            key = object.key().unwrap()
-        )))
+
+    if let Some(file_name) = head_object.metadata().and_then(|m| m.get("user-file-name")) {
+        Ok(Redirect::permanent(&format!("/{id}/{file_name}")))
     } else {
-        Err(crate::ApiError::PasteNotFound)
+        Err(ApiError::PasteNotFound)
     }
 }
 
 async fn get_paste(
     State(config): State<Config>,
     State(s3_client): State<s3::Client>,
-    Path((id, file_name)): Path<(String, String)>,
+    Path((id, _file_name)): Path<(String, String)>,
 ) -> crate::ApiResult<Response<body::Full<Bytes>>> {
-    let sanitized_file_name = sanitize_key(&file_name);
     let object = s3_client
         .get_object()
         .bucket(&config.s3_bucket)
-        .key(&format!("{id}/{sanitized_file_name}"))
+        .key(&id)
         .send()
         .await?;
 
@@ -183,7 +177,7 @@ async fn upload_paste(
         s3_client
             .put_object()
             .bucket(&config.s3_bucket)
-            .key(&format!("{id}/{sanitized_file_name}"))
+            .key(&id)
             .metadata("user-file-name", &file_name)
             .metadata("user-content-type", &content_type)
             .body(data.into())
