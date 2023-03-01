@@ -170,11 +170,8 @@ async fn upload_paste(
         let id = generate_id(&words);
         let delete_key = Uuid::new_v4().to_string();
 
-        let sanitized_file_name = sanitize_key(&file_name);
-
         info!(
-            "uploading: id='{id}', file='{sanitized_file_name}', content_type='{content_type}', \
-             size={size}",
+            "uploading: id='{id}', file='{file_name}', content_type='{content_type}', size={size}",
             size = data.len()
         );
 
@@ -189,8 +186,8 @@ async fn upload_paste(
             .send()
             .await?;
 
-        let encoded_sanitized_file_name = encode(&sanitized_file_name);
-        let path = format!("/{id}/{encoded_sanitized_file_name}");
+        let encoded_file_name = encode(&file_name);
+        let path = format!("/{id}/{encoded_file_name}");
         Ok((
             StatusCode::CREATED,
             [(header::LOCATION, path.clone())],
@@ -237,16 +234,6 @@ async fn delete_paste(
     } else {
         Err(ApiError::PasteNotFound)
     }
-}
-
-/// Sanitize a file name to thwart weird directory hacks.
-///
-/// Read more about special character handling in S3 keys:
-/// https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
-fn sanitize_key(key: &str) -> String {
-    // As far as I can tell, this is the only special character that we need to
-    // worry about, since the rest is handled by various middleware.
-    key.replace('/', "_")
 }
 
 fn generate_id(words: &Words) -> String {
