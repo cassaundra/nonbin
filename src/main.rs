@@ -29,6 +29,9 @@ pub(crate) use error::{ApiError, ApiResult};
 mod types;
 use types::UploadPaste;
 
+/// The manual for the program in man page form.
+const MAN_PAGE: &'static str = include_str!("../assets/man.txt");
+
 #[derive(Clone, FromRef)]
 struct AppState {
     config: Config,
@@ -109,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn index() -> &'static str {
-    "TODO documentation"
+    MAN_PAGE
 }
 
 async fn get_paste_bare(
