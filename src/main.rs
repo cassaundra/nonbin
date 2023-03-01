@@ -50,6 +50,7 @@ struct AppState {
 
 #[derive(Debug, Clone, Deserialize)]
 struct Config {
+    base_url: String,
     port: u16,
     max_upload_size: usize,
     adjectives_file: PathBuf,
@@ -203,12 +204,14 @@ async fn upload_paste(
 
         let encoded_file_name = encode(&file_name);
         let path = format!("/{id}/{encoded_file_name}");
+        let url = format!("{base_url}{path}", base_url = config.base_url);
+
         Ok((
             StatusCode::CREATED,
-            [(header::LOCATION, path.clone())],
+            [(header::LOCATION, path)],
             Json(UploadPaste {
                 id,
-                path,
+                url,
                 delete_key,
             }),
         ))
