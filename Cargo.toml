@@ -9,6 +9,7 @@ aws-config = "0.54.1"
 aws-sdk-s3 = "0.24.0"
 axum = { version = "0.6.7", features = ["multipart", "macros"] }
 config = { version = "0.13.3", default-features = false, features = ["toml"] }
+dotenvy = "0.15.6"
 rand = "0.8.5"
 serde = { version = "1.0.152", features = ["derive"] }
 thiserror = "1.0.38"
