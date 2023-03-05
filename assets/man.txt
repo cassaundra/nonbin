@@ -4,7 +4,7 @@ NAME
       nonbin - a minimal paste service
 
 USAGE
-      GET /<id>[/file name]
+      GET /<id>[/<file name>]
           get a paste's contents by ID and optional file name.
 
       POST /
