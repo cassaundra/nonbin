@@ -23,28 +23,23 @@ use tracing::info;
 use urlencoding::encode;
 use uuid::Uuid;
 
+mod db;
+use db::Database;
+
 mod error;
 pub(crate) use error::{ApiError, ApiResult};
 
-mod types;
-use types::UploadPaste;
+pub(crate) mod types;
+use types::api::UploadPaste;
 
 /// The manual for the program in man page form.
 const MAN_PAGE: &str = include_str!("../assets/man.txt");
-
-/// The S3 object metadata key for a paste's user-provided file name.
-const METADATA_USER_FILE_NAME: &str = "user-file-name";
-
-/// The S3 object metadata key for a paste's user-provided file name.
-const METADATA_USER_CONTENT_TYPE: &str = "user-content-type";
-
-/// The S3 object metadata key for a paste's delete key.
-const METADATA_DELETE_KEY: &str = "delete-key";
 
 #[derive(Clone, FromRef)]
 struct AppState {
     config: Config,
     words: Words,
+    database: Database,
     s3_client: s3::Client,
 }
 
@@ -55,6 +50,7 @@ struct Config {
     max_upload_size: usize,
     adjectives_file: PathBuf,
     nouns_file: PathBuf,
+    database_url: String,
     s3_bucket: String,
     s3_region: String,
     s3_endpoint: Option<String>,
@@ -88,6 +84,8 @@ async fn main() -> anyhow::Result<()> {
         nouns: read_lines(&config.nouns_file).context("failed to read nouns")?,
     };
 
+    let database = Database::connect(&config.database_url).await?;
+
     let s3_client = {
         let sdk_config = aws_config::load_from_env().await;
         let mut config_builder = s3::config::Builder::from(&sdk_config)
@@ -114,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(AppState {
             config,
             words,
+            database,
             s3_client,
         });
 
@@ -129,36 +128,22 @@ async fn index() -> &'static str {
 }
 
 async fn get_paste_bare(
-    State(config): State<Config>,
-    State(s3_client): State<s3::Client>,
-    Path(id): Path<String>,
+    State(mut db): State<Database>,
+    Path(key): Path<String>,
 ) -> crate::ApiResult<Redirect> {
-    let head_object = s3_client
-        .head_object()
-        .bucket(&config.s3_bucket)
-        .key(&id)
-        .send()
-        .await?;
-
-    if let Some(file_name) = head_object
-        .metadata()
-        .and_then(|m| m.get(METADATA_USER_FILE_NAME))
-    {
-        Ok(Redirect::permanent(&format!("/{id}/{file_name}")))
-    } else {
-        Err(ApiError::PasteNotFound)
-    }
+    let file_name = db.get_paste(&key).await?.file_name;
+    Ok(Redirect::permanent(&format!("/{key}/{file_name}")))
 }
 
 async fn get_paste(
     State(config): State<Config>,
     State(s3_client): State<s3::Client>,
-    Path((id, _file_name)): Path<(String, String)>,
+    Path((key, _file_name)): Path<(String, String)>,
 ) -> crate::ApiResult<Response<body::Full<Bytes>>> {
     let object = s3_client
         .get_object()
         .bucket(&config.s3_bucket)
-        .key(&id)
+        .key(&key)
         .send()
         .await?;
 
@@ -171,6 +156,7 @@ async fn get_paste(
 async fn upload_paste(
     State(config): State<Config>,
     State(words): State<Words>,
+    State(mut db): State<Database>,
     State(s3_client): State<s3::Client>,
     mut multipart: Multipart,
 ) -> crate::ApiResult<impl IntoResponse> {
@@ -186,34 +172,34 @@ async fn upload_paste(
             .to_owned();
         let data = field.bytes().await?;
 
-        let id = generate_id(&words);
+        let key = generate_key(&words);
         let delete_key = Uuid::new_v4().to_string();
 
         info!(
-            "uploading: id='{id}', file='{file_name}', content_type='{content_type}', size={size}",
+            "uploading: key='{key}', file='{file_name}', content_type='{content_type}', \
+             size={size}",
             size = data.len()
         );
 
         s3_client
             .put_object()
             .bucket(&config.s3_bucket)
-            .key(&id)
-            .metadata(METADATA_USER_FILE_NAME, &file_name)
-            .metadata(METADATA_USER_CONTENT_TYPE, &content_type)
-            .metadata(METADATA_DELETE_KEY, &delete_key)
+            .key(&key)
             .body(data.into())
             .send()
             .await?;
 
+        db.insert_paste(&key, &delete_key, &file_name).await?;
+
         let encoded_file_name = encode(&file_name);
-        let path = format!("/{id}/{encoded_file_name}");
+        let path = format!("/{key}/{encoded_file_name}");
         let url = format!("{base_url}{path}", base_url = config.base_url);
 
         Ok((
             StatusCode::CREATED,
             [(header::LOCATION, path)],
             Json(UploadPaste {
-                id,
+                id: key,
                 url,
                 delete_key,
             }),
@@ -225,42 +211,33 @@ async fn upload_paste(
 
 async fn delete_paste(
     State(config): State<Config>,
+    State(mut db): State<Database>,
     State(s3_client): State<s3::Client>,
     Query(params): Query<HashMap<String, String>>,
-    Path(id): Path<String>,
+    Path(key): Path<String>,
 ) -> crate::ApiResult<impl IntoResponse> {
     let delete_key = params
         .get("delete_key")
         .ok_or_else(|| ApiError::MissingDeleteKey)?;
 
-    // try and fetch the actual delete key
-    let head_object = s3_client
-        .head_object()
-        .bucket(&config.s3_bucket)
-        .key(&id)
-        .send()
-        .await?;
-    if let Some(real_delete_key) = head_object
-        .metadata()
-        .and_then(|m| m.get(METADATA_DELETE_KEY))
-    {
-        if delete_key == real_delete_key {
+    // compare against the actual delete key if it exists
+    if let Some(real_delete_key) = db.get_paste(&key).await?.delete_key {
+        if delete_key == &real_delete_key {
             s3_client
                 .delete_object()
                 .bucket(&config.s3_bucket)
-                .key(&id)
+                .key(&key)
                 .send()
                 .await?;
-            Ok(())
-        } else {
-            Err(ApiError::WrongDeleteKey)
+            db.delete_paste(&key).await?;
+            return Ok(());
         }
-    } else {
-        Err(ApiError::PasteNotFound)
     }
+
+    Err(ApiError::WrongDeleteKey)
 }
 
-fn generate_id(words: &Words) -> String {
+fn generate_key(words: &Words) -> String {
     let mut rng = thread_rng();
     let adj_a = words.adjectives.choose(&mut rng).unwrap();
     let adj_b = words.adjectives.choose(&mut rng).unwrap();

@@ -32,6 +32,8 @@ pub enum ApiError {
         #[from]
         source: http::Error,
     },
+    #[error("database error")]
+    Database { source: sqlx::Error },
     #[error("other error")]
     Other {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -49,6 +51,7 @@ impl IntoResponse for ApiError {
             ApiError::WrongDeleteKey => StatusCode::UNAUTHORIZED,
             ApiError::Multipart { .. } => StatusCode::BAD_REQUEST,
             ApiError::Http { .. } => StatusCode::BAD_REQUEST,
+            ApiError::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Other { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -92,6 +95,15 @@ impl From<SdkError<s3::error::PutObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::PutObjectError>) -> Self {
         ApiError::Other {
             source: Box::new(source),
+        }
+    }
+}
+
+impl From<sqlx::Error> for ApiError {
+    fn from(source: sqlx::Error) -> Self {
+        match source {
+            sqlx::Error::RowNotFound => ApiError::PasteNotFound,
+            _ => ApiError::Database { source },
         }
     }
 }
