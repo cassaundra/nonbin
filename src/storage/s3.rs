@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use aws_config::retry::RetryConfig;
 use aws_sdk_s3 as s3;
 
@@ -12,15 +10,11 @@ pub struct S3Storage {
 }
 
 impl S3Storage {
-    pub async fn new(
-        bucket: impl Into<String>,
-        region: Option<impl Into<Cow<'static, str>>>,
-        endpoint: Option<impl Into<String>>,
-    ) -> Self {
+    pub async fn new(bucket: &str, region: Option<&str>, endpoint: Option<&str>) -> Self {
         let client = {
             let mut config_loader = aws_config::from_env().retry_config(RetryConfig::disabled());
             if let Some(region) = region {
-                config_loader = config_loader.region(s3::Region::new(region));
+                config_loader = config_loader.region(s3::Region::new(region.to_owned()));
             }
             if let Some(endpoint) = endpoint {
                 config_loader = config_loader.endpoint_url(endpoint);

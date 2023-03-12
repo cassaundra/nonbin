@@ -9,8 +9,11 @@ port = 3000
 url = "sqlite://database.db"
 
 [storage]
-# The storage method to use ("s3" or "fs").
-kind = "s3"
+# The storage method to use ("s3" or "file").
+kind = "file"
+
+[storage.file]
+dir = "pastes"
 
 [storage.s3]
 # The S3 bucket to upload files to.

@@ -67,18 +67,24 @@ async fn main() -> anyhow::Result<()> {
         toml::from_str(&contents).context("failed to parse config file")?
     };
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
-
     let database = Database::connect(&config.database.url).await?;
 
-    let s3_storage = storage::s3::S3Storage::new(
-        config.storage.s3.bucket.clone(),
-        config.storage.s3.region.clone(),
-        config.storage.s3.endpoint.clone(),
-    )
-    .await;
-
-    let storage = AnyStorage::S3(s3_storage);
+    let storage = match &config.storage.kind {
+        config::StorageKind::File => storage::file::FileStorage::new(&config.storage.file.dir)
+            .await?
+            .into(),
+        #[cfg(feature = "s3")]
+        config::StorageKind::S3 => {
+            let s3_config = &config.storage.s3;
+            storage::s3::S3Storage::new(
+                &s3_config.bucket,
+                s3_config.region.as_deref(),
+                s3_config.endpoint.as_deref(),
+            )
+            .await
+            .into()
+        }
+    };
 
     let word_lists = WordLists {
         adjectives: read_lines(&config.word_lists.adjectives_file)
@@ -88,6 +94,8 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("failed to read nouns")?,
     };
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
