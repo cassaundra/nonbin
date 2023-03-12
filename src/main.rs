@@ -72,8 +72,8 @@ async fn main() -> anyhow::Result<()> {
     let database = Database::connect(&config.database.url).await?;
 
     let s3_storage = storage::s3::S3Storage::new(
-        config.storage.s3.region.clone(),
         config.storage.s3.bucket.clone(),
+        config.storage.s3.region.clone(),
         config.storage.s3.endpoint.clone(),
     )
     .await;

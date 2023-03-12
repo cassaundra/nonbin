@@ -28,7 +28,7 @@ pub struct Storage {
 #[cfg(feature = "s3")]
 pub struct S3 {
     pub bucket: String,
-    pub region: String,
+    pub region: Option<String>,
     pub endpoint: Option<String>,
 }
 

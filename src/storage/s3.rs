@@ -13,23 +13,21 @@ pub struct S3Storage {
 
 impl S3Storage {
     pub async fn new(
-        region: impl Into<Cow<'static, str>>,
         bucket: impl Into<String>,
+        region: Option<impl Into<Cow<'static, str>>>,
         endpoint: Option<impl Into<String>>,
     ) -> Self {
         let client = {
-            let sdk_config = aws_config::load_from_env().await;
-            let mut config_builder = s3::config::Builder::from(&sdk_config)
-                .region(s3::Region::new(region))
-                .retry_config(RetryConfig::disabled());
-
-            if let Some(endpoint) = endpoint {
-                config_builder = config_builder.endpoint_url(endpoint);
+            let mut config_loader = aws_config::from_env().retry_config(RetryConfig::disabled());
+            if let Some(region) = region {
+                config_loader = config_loader.region(s3::Region::new(region));
             }
+            if let Some(endpoint) = endpoint {
+                config_loader = config_loader.endpoint_url(endpoint);
+            }
+            let sdk_config = config_loader.load().await;
 
-            let s3_config = config_builder.build();
-
-            s3::Client::from_conf(s3_config)
+            s3::Client::new(&sdk_config)
         };
 
         S3Storage {

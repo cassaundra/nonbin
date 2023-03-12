@@ -17,7 +17,7 @@ kind = "s3"
 bucket = ""
 
 # The S3 region to connect to.
-region = ""
+# region = ""
 
 # The S3 endpoint to connect to, if not AWS.
 # endpoint = ""
