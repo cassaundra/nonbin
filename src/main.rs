@@ -107,9 +107,9 @@ async fn main() -> anyhow::Result<()> {
         .route_layer(NormalizePathLayer::trim_trailing_slash())
         .with_state(AppState {
             config,
-            word_lists,
             database,
             storage,
+            word_lists,
         });
 
     axum::Server::bind(&addr)
@@ -222,7 +222,7 @@ fn generate_key(words: &WordLists) -> String {
 async fn read_lines(path: impl AsRef<std::path::Path>) -> io::Result<Vec<String>> {
     let file = fs::File::open(path).await?;
     let lines = LinesStream::new(io::BufReader::new(file).lines())
-        .filter_map(|s| s.ok())
+        .filter_map(Result::ok)
         .filter(|s| !s.is_empty())
         .collect()
         .await;
