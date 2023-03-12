@@ -10,7 +10,6 @@ aws-sdk-s3 = { version = "0.24.0", optional = true }
 axum = { version = "0.6.7", features = ["multipart", "macros"] }
 chrono = "0.4.23"
 config = { version = "0.13.3", default-features = false, features = ["toml"] }
-dotenvy = "0.15.6"
 rand = "0.8.5"
 serde = { version = "1.0.152", features = ["derive"] }
 sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "any", "chrono"] }

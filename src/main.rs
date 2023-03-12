@@ -56,9 +56,6 @@ struct WordLists {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // try to load .env, ignoring any errors
-    _ = dotenvy::dotenv();
-
     tracing_subscriber::fmt::init();
 
     let config: Config = ::config::Config::builder()
