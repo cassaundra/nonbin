@@ -1,9 +1,12 @@
-use aws_sdk_s3 as s3;
 use axum::extract::multipart::MultipartError;
 use axum::http::{self, StatusCode};
 use axum::response::{IntoResponse, Response};
-use s3::types::SdkError;
 use thiserror::Error;
+
+#[cfg(feature = "s3")]
+use aws_sdk_s3 as s3;
+#[cfg(feature = "s3")]
+use s3::types::SdkError;
 
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
 
@@ -59,6 +62,7 @@ impl IntoResponse for ApiError {
     }
 }
 
+#[cfg(feature = "s3")]
 impl From<SdkError<s3::error::DeleteObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::DeleteObjectError>) -> Self {
         ApiError::Other {
@@ -67,6 +71,7 @@ impl From<SdkError<s3::error::DeleteObjectError>> for ApiError {
     }
 }
 
+#[cfg(feature = "s3")]
 impl From<SdkError<s3::error::GetObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::GetObjectError>) -> Self {
         let error = source.into_service_error();
@@ -79,6 +84,7 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
     }
 }
 
+#[cfg(feature = "s3")]
 impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::HeadObjectError>) -> Self {
         let error = source.into_service_error();
@@ -91,6 +97,7 @@ impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
     }
 }
 
+#[cfg(feature = "s3")]
 impl From<SdkError<s3::error::PutObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::PutObjectError>) -> Self {
         ApiError::Other {

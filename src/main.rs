@@ -1,3 +1,6 @@
+#![feature(async_fn_in_trait)]
+#![allow(incomplete_features)]
+
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::net::SocketAddr;
@@ -5,8 +8,6 @@ use std::path::PathBuf;
 use std::{fs, io};
 
 use anyhow::Context;
-use aws_config::retry::RetryConfig;
-use aws_sdk_s3 as s3;
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, FromRef, Multipart, Path, Query, State};
 use axum::http::{header, StatusCode};
@@ -29,6 +30,9 @@ use db::Database;
 mod error;
 pub(crate) use error::{ApiError, ApiResult};
 
+pub(crate) mod storage;
+use storage::{AnyStorage, Storage};
+
 pub(crate) mod types;
 use types::api::UploadPaste;
 
@@ -40,7 +44,7 @@ struct AppState {
     config: Config,
     words: Words,
     database: Database,
-    s3_client: s3::Client,
+    storage: AnyStorage,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,20 +90,13 @@ async fn main() -> anyhow::Result<()> {
 
     let database = Database::connect(&config.database_url).await?;
 
-    let s3_client = {
-        let sdk_config = aws_config::load_from_env().await;
-        let mut config_builder = s3::config::Builder::from(&sdk_config)
-            .region(s3::Region::new(config.s3_region.clone()))
-            .retry_config(RetryConfig::disabled());
-
-        if let Some(endpoint) = &config.s3_endpoint {
-            config_builder = config_builder.endpoint_url(endpoint);
-        }
-
-        let s3_config = config_builder.build();
-
-        s3::Client::from_conf(s3_config)
-    };
+    let s3_storage = storage::s3::S3Storage::new(
+        config.s3_region.clone(),
+        config.s3_bucket.clone(),
+        config.s3_endpoint.clone(),
+    )
+    .await;
+    let storage = AnyStorage::S3(s3_storage);
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
@@ -113,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
             config,
             words,
             database,
-            s3_client,
+            storage,
         });
 
     axum::Server::bind(&addr)
@@ -136,20 +133,11 @@ async fn get_paste_bare(
 }
 
 async fn get_paste(
-    State(config): State<Config>,
-    State(s3_client): State<s3::Client>,
+    State(mut storage): State<AnyStorage>,
     Path((key, _file_name)): Path<(String, String)>,
 ) -> crate::ApiResult<Response<body::Full<Bytes>>> {
-    let object = s3_client
-        .get_object()
-        .bucket(&config.s3_bucket)
-        .key(&key)
-        .send()
-        .await?;
-
-    let body = object.body.collect().await.unwrap().into_bytes();
+    let body = storage.get_object(&key).await?;
     let response = Response::builder().body(body::Full::new(body))?;
-
     Ok(response)
 }
 
@@ -157,7 +145,7 @@ async fn upload_paste(
     State(config): State<Config>,
     State(words): State<Words>,
     State(mut db): State<Database>,
-    State(s3_client): State<s3::Client>,
+    State(mut storage): State<AnyStorage>,
     mut multipart: Multipart,
 ) -> crate::ApiResult<impl IntoResponse> {
     // just take the first multipart field
@@ -181,14 +169,7 @@ async fn upload_paste(
             size = data.len()
         );
 
-        s3_client
-            .put_object()
-            .bucket(&config.s3_bucket)
-            .key(&key)
-            .body(data.into())
-            .send()
-            .await?;
-
+        storage.put_object(&key, data).await?;
         db.insert_paste(&key, &delete_key, &file_name).await?;
 
         let encoded_file_name = encode(&file_name);
@@ -210,9 +191,8 @@ async fn upload_paste(
 }
 
 async fn delete_paste(
-    State(config): State<Config>,
     State(mut db): State<Database>,
-    State(s3_client): State<s3::Client>,
+    State(mut storage): State<AnyStorage>,
     Query(params): Query<HashMap<String, String>>,
     Path(key): Path<String>,
 ) -> crate::ApiResult<impl IntoResponse> {
@@ -223,12 +203,7 @@ async fn delete_paste(
     // compare against the actual delete key if it exists
     if let Some(real_delete_key) = db.get_paste(&key).await?.delete_key {
         if delete_key == &real_delete_key {
-            s3_client
-                .delete_object()
-                .bucket(&config.s3_bucket)
-                .key(&key)
-                .send()
-                .await?;
+            storage.delete_object(&key).await?;
             db.delete_paste(&key).await?;
             return Ok(());
         }
