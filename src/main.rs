@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::{fs, io};
 
 use anyhow::Context;
@@ -16,13 +15,15 @@ use axum::routing::get;
 use axum::{body, Json, Router};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use urlencoding::encode;
 use uuid::Uuid;
+
+mod config;
+use crate::config::Config;
 
 mod db;
 use db::Database;
@@ -42,26 +43,13 @@ const MAN_PAGE: &str = include_str!("../assets/man.txt");
 #[derive(Clone, FromRef)]
 struct AppState {
     config: Config,
-    words: Words,
     database: Database,
     storage: AnyStorage,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct Config {
-    base_url: String,
-    port: u16,
-    max_upload_size: usize,
-    adjectives_file: PathBuf,
-    nouns_file: PathBuf,
-    database_url: String,
-    s3_bucket: String,
-    s3_region: String,
-    s3_endpoint: Option<String>,
+    word_lists: WordLists,
 }
 
 #[derive(Debug, Clone)]
-struct Words {
+struct WordLists {
     adjectives: Vec<String>,
     nouns: Vec<String>,
 }
@@ -73,9 +61,8 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt::init();
 
-    let config: Config = config::Config::builder()
-        .add_source(config::File::with_name("config.toml").required(false))
-        .add_source(config::Environment::with_prefix("NONBIN"))
+    let config: Config = ::config::Config::builder()
+        .add_source(::config::File::with_name("config.toml").required(false))
         .build()
         .context("failed to read config")?
         .try_deserialize()
@@ -83,32 +70,34 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
 
-    let words = Words {
-        adjectives: read_lines(&config.adjectives_file).context("failed to read adjectives")?,
-        nouns: read_lines(&config.nouns_file).context("failed to read nouns")?,
-    };
-
-    let database = Database::connect(&config.database_url).await?;
+    let database = Database::connect(&config.database.url).await?;
 
     let s3_storage = storage::s3::S3Storage::new(
-        config.s3_region.clone(),
-        config.s3_bucket.clone(),
-        config.s3_endpoint.clone(),
+        config.storage.s3.region.clone(),
+        config.storage.s3.bucket.clone(),
+        config.storage.s3.endpoint.clone(),
     )
     .await;
+
     let storage = AnyStorage::S3(s3_storage);
+
+    let word_lists = WordLists {
+        adjectives: read_lines(&config.word_lists.adjectives_file)
+            .context("failed to read adjectives")?,
+        nouns: read_lines(&config.word_lists.nouns_file).context("failed to read nouns")?,
+    };
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
         .route("/:id", get(get_paste_bare).delete(delete_paste))
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
-        .layer(RequestBodyLimitLayer::new(config.max_upload_size))
+        .layer(RequestBodyLimitLayer::new(config.limits.max_upload_size))
         .layer(TraceLayer::new_for_http())
         .route_layer(NormalizePathLayer::trim_trailing_slash())
         .with_state(AppState {
             config,
-            words,
+            word_lists,
             database,
             storage,
         });
@@ -143,7 +132,7 @@ async fn get_paste(
 
 async fn upload_paste(
     State(config): State<Config>,
-    State(words): State<Words>,
+    State(words): State<WordLists>,
     State(mut db): State<Database>,
     State(mut storage): State<AnyStorage>,
     mut multipart: Multipart,
@@ -212,7 +201,7 @@ async fn delete_paste(
     Err(ApiError::WrongDeleteKey)
 }
 
-fn generate_key(words: &Words) -> String {
+fn generate_key(words: &WordLists) -> String {
     let mut rng = thread_rng();
     let adj_a = words.adjectives.choose(&mut rng).unwrap();
     let adj_b = words.adjectives.choose(&mut rng).unwrap();

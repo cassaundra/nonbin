@@ -4,9 +4,29 @@ base_url = "http://localhost:3000"
 # The port to run the service on.
 port = 3000
 
+[database]
+# The database URL (supported are sqlite and postgres).
+url = "sqlite://database.db"
+
+[storage]
+# The storage method to use ("s3" or "fs").
+kind = "s3"
+
+[storage.s3]
+# The S3 bucket to upload files to.
+bucket = ""
+
+# The S3 region to connect to.
+region = ""
+
+# The S3 endpoint to connect to, if not AWS.
+# endpoint = ""
+
+[limits]
 # The max upload size in bytes.
 max_upload_size = 5_000_000
 
+[word_lists]
 # The path to the adjectives file, which contains a list of adjectives separated
 # by newlines. Terminating newlines are ignored.
 adjectives_file = "adjectives.txt"
@@ -14,12 +34,3 @@ adjectives_file = "adjectives.txt"
 # The path to the nouns file, which contains a list of nouns separated by
 # newlines. Terminating newlines are ignored.
 nouns_file = "animals.txt"
-
-# The S3 bucket to upload files to.
-s3_bucket = ""
-
-# The S3 region to connect to.
-s3_region = ""
-
-# The S3 endpoint to connect to, if not AWS.
-# s3_endpoint = ""
