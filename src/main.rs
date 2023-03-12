@@ -58,12 +58,10 @@ struct WordLists {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let config: Config = ::config::Config::builder()
-        .add_source(::config::File::with_name("config.toml").required(false))
-        .build()
-        .context("failed to read config")?
-        .try_deserialize()
-        .context("failed to deserialize config")?;
+    let config: Config = {
+        let contents = fs::read_to_string("config.toml").context("failed to read config file")?;
+        toml::from_str(&contents).context("failed to parse config file")?
+    };
 
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
 
