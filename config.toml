@@ -13,7 +13,10 @@ port = 3000
   kind = "file"
 
 [storage.file]
-  dir = "pastes"
+  # The directory to store pastes in.
+  #
+  # For security reasons, the directory will not be created by default.
+  dir = "pastes/"
 
 [storage.s3]
   # The S3 bucket to upload files to.

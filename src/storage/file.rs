@@ -13,9 +13,6 @@ pub struct FileStorage {
 impl FileStorage {
     pub async fn new(dir: impl Into<PathBuf>) -> anyhow::Result<Self> {
         let dir: PathBuf = dir.into();
-
-        fs::create_dir_all(&dir).await?;
-
         Ok(FileStorage { dir })
     }
 }
