@@ -2,9 +2,7 @@
 #![allow(incomplete_features)]
 
 use std::collections::HashMap;
-use std::io::BufRead;
 use std::net::SocketAddr;
-use std::{fs, io};
 
 use anyhow::Context;
 use axum::body::Bytes;
@@ -15,6 +13,10 @@ use axum::routing::get;
 use axum::{body, Json, Router};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use tokio::io::AsyncBufReadExt;
+use tokio::{fs, io};
+use tokio_stream::wrappers::LinesStream;
+use tokio_stream::StreamExt;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::trace::TraceLayer;
@@ -59,7 +61,9 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let config: Config = {
-        let contents = fs::read_to_string("config.toml").context("failed to read config file")?;
+        let contents = fs::read_to_string("config.toml")
+            .await
+            .context("failed to read config file")?;
         toml::from_str(&contents).context("failed to parse config file")?
     };
 
@@ -78,8 +82,11 @@ async fn main() -> anyhow::Result<()> {
 
     let word_lists = WordLists {
         adjectives: read_lines(&config.word_lists.adjectives_file)
+            .await
             .context("failed to read adjectives")?,
-        nouns: read_lines(&config.word_lists.nouns_file).context("failed to read nouns")?,
+        nouns: read_lines(&config.word_lists.nouns_file)
+            .await
+            .context("failed to read nouns")?,
     };
 
     let app = Router::new()
@@ -204,12 +211,12 @@ fn generate_key(words: &WordLists) -> String {
     format!("{adj_a}-{adj_b}-{noun}")
 }
 
-fn read_lines(path: impl AsRef<std::path::Path>) -> io::Result<Vec<String>> {
-    let file = fs::File::open(path)?;
-    let lines = io::BufReader::new(file)
-        .lines()
+async fn read_lines(path: impl AsRef<std::path::Path>) -> io::Result<Vec<String>> {
+    let file = fs::File::open(path).await?;
+    let lines = LinesStream::new(io::BufReader::new(file).lines())
         .filter_map(|s| s.ok())
         .filter(|s| !s.is_empty())
-        .collect();
+        .collect()
+        .await;
     Ok(lines)
 }

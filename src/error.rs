@@ -13,8 +13,8 @@ pub type ApiResult<T> = std::result::Result<T, ApiError>;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ApiError {
-    #[error("paste not found")]
-    PasteNotFound,
+    #[error("not found")]
+    NotFound,
     #[error("missing multipart file")]
     MissingFile,
     #[error("missing multipart file name")]
@@ -37,6 +37,8 @@ pub enum ApiError {
     },
     #[error("database error")]
     Database { source: sqlx::Error },
+    #[error("IO error")]
+    IO { source: std::io::Error },
     #[error("other error")]
     Other {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -46,7 +48,7 @@ pub enum ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status_code = match &self {
-            ApiError::PasteNotFound => StatusCode::NOT_FOUND,
+            ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::MissingFile => StatusCode::BAD_REQUEST,
             ApiError::MissingFileName => StatusCode::BAD_REQUEST,
             ApiError::MissingFileContentType => StatusCode::BAD_REQUEST,
@@ -55,6 +57,7 @@ impl IntoResponse for ApiError {
             ApiError::Multipart { .. } => StatusCode::BAD_REQUEST,
             ApiError::Http { .. } => StatusCode::BAD_REQUEST,
             ApiError::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::IO { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Other { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -76,7 +79,7 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::GetObjectError>) -> Self {
         let error = source.into_service_error();
         match error.kind {
-            s3::error::GetObjectErrorKind::NoSuchKey(_) => ApiError::PasteNotFound,
+            s3::error::GetObjectErrorKind::NoSuchKey(_) => ApiError::NotFound,
             _ => ApiError::Other {
                 source: Box::new(error),
             },
@@ -89,7 +92,7 @@ impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::HeadObjectError>) -> Self {
         let error = source.into_service_error();
         match error.kind {
-            s3::error::HeadObjectErrorKind::NotFound(_) => ApiError::PasteNotFound,
+            s3::error::HeadObjectErrorKind::NotFound(_) => ApiError::NotFound,
             _ => ApiError::Other {
                 source: Box::new(error),
             },
@@ -109,8 +112,17 @@ impl From<SdkError<s3::error::PutObjectError>> for ApiError {
 impl From<sqlx::Error> for ApiError {
     fn from(source: sqlx::Error) -> Self {
         match source {
-            sqlx::Error::RowNotFound => ApiError::PasteNotFound,
+            sqlx::Error::RowNotFound => ApiError::NotFound,
             _ => ApiError::Database { source },
+        }
+    }
+}
+
+impl From<std::io::Error> for ApiError {
+    fn from(source: std::io::Error) -> Self {
+        match source.kind() {
+            std::io::ErrorKind::NotFound => ApiError::NotFound,
+            _ => ApiError::IO { source },
         }
     }
 }
