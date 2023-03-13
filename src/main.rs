@@ -19,7 +19,6 @@ use tokio::{fs, io};
 use tokio_stream::wrappers::LinesStream;
 use tokio_stream::StreamExt;
 use tower_http::limit::RequestBodyLimitLayer;
-use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use urlencoding::encode;
@@ -101,11 +100,11 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
         .route("/:id", get(get_paste_bare).delete(delete_paste))
+        .route("/:id/", get(get_paste_bare).delete(delete_paste)) // hack
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(config.limits.max_upload_size))
         .layer(TraceLayer::new_for_http())
-        .route_layer(NormalizePathLayer::trim_trailing_slash())
         .with_state(AppState {
             config,
             database,
