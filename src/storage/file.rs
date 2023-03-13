@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::bail;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 
@@ -13,6 +14,15 @@ pub struct FileStorage {
 impl FileStorage {
     pub async fn new(dir: impl Into<PathBuf>) -> anyhow::Result<Self> {
         let dir: PathBuf = dir.into();
+
+        if !dir.exists() {
+            bail!("directory does not exist")
+        }
+
+        if !dir.is_dir() {
+            bail!("not a directory");
+        }
+
         Ok(FileStorage { dir })
     }
 }
