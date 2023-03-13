@@ -15,6 +15,8 @@ pub type ApiResult<T> = std::result::Result<T, ApiError>;
 pub enum ApiError {
     #[error("not found")]
     NotFound,
+    #[error("insufficient storage")]
+    InsufficientStorage,
     #[error("missing multipart file")]
     MissingFile,
     #[error("missing multipart file name")]
@@ -50,6 +52,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status_code = match &self {
             ApiError::NotFound => StatusCode::NOT_FOUND,
+            ApiError::InsufficientStorage => StatusCode::INSUFFICIENT_STORAGE,
             ApiError::MissingFile => StatusCode::BAD_REQUEST,
             ApiError::MissingFileName => StatusCode::BAD_REQUEST,
             ApiError::MissingFileContentType => StatusCode::BAD_REQUEST,
@@ -124,6 +127,7 @@ impl From<std::io::Error> for ApiError {
     fn from(source: std::io::Error) -> Self {
         match source.kind() {
             std::io::ErrorKind::NotFound => ApiError::NotFound,
+            std::io::ErrorKind::StorageFull => ApiError::InsufficientStorage,
             _ => ApiError::IO { source },
         }
     }

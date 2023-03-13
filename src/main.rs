@@ -1,4 +1,5 @@
 #![feature(async_fn_in_trait)]
+#![feature(io_error_more)]
 #![allow(incomplete_features)]
 
 use std::collections::HashMap;
