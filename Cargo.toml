@@ -23,7 +23,7 @@ urlencoding = "2.1.2"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng"] }
 
 [features]
-default = ["s3", "sqlite"]
+default = ["sqlite"]
 
 s3 = ["dep:aws-config", "dep:aws-sdk-s3"]
 
