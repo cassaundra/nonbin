@@ -40,7 +40,8 @@ pub enum ApiError {
     #[error("IO error")]
     IO { source: std::io::Error },
     #[error("other error")]
-    Other {
+    #[cfg(feature = "s3")]
+    S3 {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 }
@@ -58,7 +59,8 @@ impl IntoResponse for ApiError {
             ApiError::Http { .. } => StatusCode::BAD_REQUEST,
             ApiError::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::IO { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::Other { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(feature = "s3")]
+            ApiError::S3 { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status_code, format!("{self}")).into_response()
@@ -68,7 +70,7 @@ impl IntoResponse for ApiError {
 #[cfg(feature = "s3")]
 impl From<SdkError<s3::error::DeleteObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::DeleteObjectError>) -> Self {
-        ApiError::Other {
+        ApiError::S3 {
             source: Box::new(source),
         }
     }
@@ -80,7 +82,7 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
         let error = source.into_service_error();
         match error.kind {
             s3::error::GetObjectErrorKind::NoSuchKey(_) => ApiError::NotFound,
-            _ => ApiError::Other {
+            _ => ApiError::S3 {
                 source: Box::new(error),
             },
         }
@@ -93,7 +95,7 @@ impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
         let error = source.into_service_error();
         match error.kind {
             s3::error::HeadObjectErrorKind::NotFound(_) => ApiError::NotFound,
-            _ => ApiError::Other {
+            _ => ApiError::S3 {
                 source: Box::new(error),
             },
         }
@@ -103,7 +105,7 @@ impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
 #[cfg(feature = "s3")]
 impl From<SdkError<s3::error::PutObjectError>> for ApiError {
     fn from(source: SdkError<s3::error::PutObjectError>) -> Self {
-        ApiError::Other {
+        ApiError::S3 {
             source: Box::new(source),
         }
     }
