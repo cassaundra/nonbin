@@ -4,6 +4,7 @@
 
 use anyhow::Context;
 use axum::extract::FromRef;
+use clap::{Parser, Subcommand};
 use tokio::fs;
 
 use crate::config::Config;
@@ -21,6 +22,18 @@ mod words;
 
 pub use crate::error::ApiResult;
 
+#[derive(Debug, Parser)]
+#[command(color = clap::ColorChoice::Never)]
+struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    Serve,
+}
+
 #[derive(Clone, FromRef)]
 pub struct App {
     config: Config,
@@ -32,6 +45,8 @@ pub struct App {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+
+    let args = Args::parse();
 
     let config: Config = {
         let contents = fs::read_to_string("config.toml")
@@ -72,5 +87,9 @@ async fn main() -> anyhow::Result<()> {
         word_lists,
     };
 
-    server::serve(app).await
+    match &args.command {
+        Command::Serve => server::serve(app).await?,
+    }
+
+    Ok(())
 }
