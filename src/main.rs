@@ -2,10 +2,14 @@
 #![feature(io_error_more)]
 #![allow(incomplete_features)]
 
-use anyhow::Context;
+use std::path::PathBuf;
+
+use anyhow::{bail, Context};
 use axum::extract::FromRef;
 use clap::{Parser, Subcommand};
+use directories_next::ProjectDirs;
 use tokio::fs;
+use tracing::info;
 
 use crate::config::Config;
 use crate::db::Database;
@@ -25,6 +29,10 @@ pub use crate::error::ApiResult;
 #[derive(Debug, Parser)]
 #[command(color = clap::ColorChoice::Never)]
 struct Args {
+    /// Path the config file to use
+    #[arg(short, long, global = true)]
+    config: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -49,7 +57,22 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let config: Config = {
-        let contents = fs::read_to_string("config.toml")
+        let path = if let Some(path) = args.config {
+            path
+        } else {
+            let options = vec![
+                Some(PathBuf::from("config.toml")),
+                ProjectDirs::from("in", "nonb", "nonbin")
+                    .map(|p| p.config_dir().join("config.toml")),
+            ];
+
+            match options.into_iter().flatten().find(|p| p.exists()) {
+                Some(path) => path,
+                _ => bail!("could not locate config.toml"),
+            }
+        };
+        info!("reading config from {path:?}");
+        let contents = fs::read_to_string(path)
             .await
             .context("failed to read config file")?;
         toml::from_str(&contents).context("failed to parse config file")?
