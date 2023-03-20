@@ -15,6 +15,14 @@ impl Database {
         })
     }
 
+    /// Get all pastes.
+    pub async fn get_all_pastes(&mut self) -> crate::ApiResult<Vec<Paste>> {
+        let mut conn = self.pool.acquire().await?;
+        Ok(sqlx::query_as::<_, Paste>("SELECT * FROM paste")
+            .fetch_all(&mut conn)
+            .await?)
+    }
+
     /// Get a paste by key.
     pub async fn get_paste(&mut self, key: &str) -> crate::ApiResult<Paste> {
         let mut conn = self.pool.acquire().await?;
