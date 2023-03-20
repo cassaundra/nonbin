@@ -16,10 +16,10 @@ use crate::db::Database;
 use crate::storage::AnyStorage;
 use crate::words::WordLists;
 
+mod commands;
 mod config;
 mod db;
 mod error;
-mod server;
 mod storage;
 mod types;
 mod words;
@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     match &args.command {
-        Command::Serve => server::serve(app).await?,
+        Command::Serve => commands::serve::run(app).await?,
     }
 
     Ok(())

@@ -24,8 +24,8 @@ use crate::App;
 /// The manual for the program in man page form.
 const MAN_PAGE: &str = include_str!("../../assets/man.txt");
 
-pub async fn serve(state: App) -> anyhow::Result<()> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], state.config.port));
+pub async fn run(app: App) -> anyhow::Result<()> {
+    let addr = SocketAddr::from(([127, 0, 0, 1], app.config.port));
 
     let app = Router::new()
         .route("/", get(index).post(upload_paste))
@@ -34,10 +34,10 @@ pub async fn serve(state: App) -> anyhow::Result<()> {
         .route("/:id/:file_name", get(get_paste))
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(
-            state.config.limits.max_upload_size,
+            app.config.limits.max_upload_size,
         ))
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        .with_state(app);
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
