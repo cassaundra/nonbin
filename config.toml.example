@@ -32,6 +32,9 @@ port = 3000
   # The max upload size in bytes.
   max_upload_size = 5_000_000
 
+  # Paste expiration time in seconds.
+  expiration_time = 259200
+
 [word_lists]
   # The path to the adjectives file, which contains a list of adjectives separated
   # by newlines. Terminating newlines are ignored.

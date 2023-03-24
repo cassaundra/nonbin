@@ -39,6 +39,7 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    PurgeExpired,
     Serve,
 }
 
@@ -111,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     match &args.command {
+        Command::PurgeExpired => commands::purge_expired::run(app).await?,
         Command::Serve => commands::serve::run(app).await?,
     }
 
