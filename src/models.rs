@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::FromRow;
 
-pub mod api;
-
-#[derive(FromRow)]
+#[derive(FromRow, Serialize)]
 pub struct Paste {
     pub key: String,
     pub delete_key: Option<String>,

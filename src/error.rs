@@ -8,11 +8,14 @@ use aws_sdk_s3 as s3;
 #[cfg(feature = "s3")]
 use s3::types::SdkError;
 
-pub type ApiResult<T> = std::result::Result<T, ApiError>;
+pub type AppResult<T> = std::result::Result<T, AppError>;
+
+#[derive(Debug)]
+pub struct NotFound;
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
-pub enum ApiError {
+pub enum AppError {
     #[error("not found")]
     NotFound,
     #[error("insufficient storage")]
@@ -48,22 +51,22 @@ pub enum ApiError {
     },
 }
 
-impl IntoResponse for ApiError {
+impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status_code = match &self {
-            ApiError::NotFound => StatusCode::NOT_FOUND,
-            ApiError::InsufficientStorage => StatusCode::INSUFFICIENT_STORAGE,
-            ApiError::MissingFile => StatusCode::BAD_REQUEST,
-            ApiError::MissingFileName => StatusCode::BAD_REQUEST,
-            ApiError::MissingFileContentType => StatusCode::BAD_REQUEST,
-            ApiError::MissingDeleteKey => StatusCode::BAD_REQUEST,
-            ApiError::WrongDeleteKey => StatusCode::UNAUTHORIZED,
-            ApiError::Multipart { .. } => StatusCode::BAD_REQUEST,
-            ApiError::Http { .. } => StatusCode::BAD_REQUEST,
-            ApiError::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::IO { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::NotFound => StatusCode::NOT_FOUND,
+            AppError::InsufficientStorage => StatusCode::INSUFFICIENT_STORAGE,
+            AppError::MissingFile => StatusCode::BAD_REQUEST,
+            AppError::MissingFileName => StatusCode::BAD_REQUEST,
+            AppError::MissingFileContentType => StatusCode::BAD_REQUEST,
+            AppError::MissingDeleteKey => StatusCode::BAD_REQUEST,
+            AppError::WrongDeleteKey => StatusCode::UNAUTHORIZED,
+            AppError::Multipart { .. } => StatusCode::BAD_REQUEST,
+            AppError::Http { .. } => StatusCode::BAD_REQUEST,
+            AppError::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::IO { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             #[cfg(feature = "s3")]
-            ApiError::S3 { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::S3 { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status_code, format!("{self}")).into_response()
@@ -71,21 +74,21 @@ impl IntoResponse for ApiError {
 }
 
 #[cfg(feature = "s3")]
-impl From<SdkError<s3::error::DeleteObjectError>> for ApiError {
+impl From<SdkError<s3::error::DeleteObjectError>> for AppError {
     fn from(source: SdkError<s3::error::DeleteObjectError>) -> Self {
-        ApiError::S3 {
+        AppError::S3 {
             source: Box::new(source),
         }
     }
 }
 
 #[cfg(feature = "s3")]
-impl From<SdkError<s3::error::GetObjectError>> for ApiError {
+impl From<SdkError<s3::error::GetObjectError>> for AppError {
     fn from(source: SdkError<s3::error::GetObjectError>) -> Self {
         let error = source.into_service_error();
         match error.kind {
-            s3::error::GetObjectErrorKind::NoSuchKey(_) => ApiError::NotFound,
-            _ => ApiError::S3 {
+            s3::error::GetObjectErrorKind::NoSuchKey(_) => AppError::NotFound,
+            _ => AppError::S3 {
                 source: Box::new(error),
             },
         }
@@ -93,12 +96,12 @@ impl From<SdkError<s3::error::GetObjectError>> for ApiError {
 }
 
 #[cfg(feature = "s3")]
-impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
+impl From<SdkError<s3::error::HeadObjectError>> for AppError {
     fn from(source: SdkError<s3::error::HeadObjectError>) -> Self {
         let error = source.into_service_error();
         match error.kind {
-            s3::error::HeadObjectErrorKind::NotFound(_) => ApiError::NotFound,
-            _ => ApiError::S3 {
+            s3::error::HeadObjectErrorKind::NotFound(_) => AppError::NotFound,
+            _ => AppError::S3 {
                 source: Box::new(error),
             },
         }
@@ -106,29 +109,29 @@ impl From<SdkError<s3::error::HeadObjectError>> for ApiError {
 }
 
 #[cfg(feature = "s3")]
-impl From<SdkError<s3::error::PutObjectError>> for ApiError {
+impl From<SdkError<s3::error::PutObjectError>> for AppError {
     fn from(source: SdkError<s3::error::PutObjectError>) -> Self {
-        ApiError::S3 {
+        AppError::S3 {
             source: Box::new(source),
         }
     }
 }
 
-impl From<sqlx::Error> for ApiError {
+impl From<sqlx::Error> for AppError {
     fn from(source: sqlx::Error) -> Self {
         match source {
-            sqlx::Error::RowNotFound => ApiError::NotFound,
-            _ => ApiError::Database { source },
+            sqlx::Error::RowNotFound => AppError::NotFound,
+            _ => AppError::Database { source },
         }
     }
 }
 
-impl From<std::io::Error> for ApiError {
+impl From<std::io::Error> for AppError {
     fn from(source: std::io::Error) -> Self {
         match source.kind() {
-            std::io::ErrorKind::NotFound => ApiError::NotFound,
-            std::io::ErrorKind::StorageFull => ApiError::InsufficientStorage,
-            _ => ApiError::IO { source },
+            std::io::ErrorKind::NotFound => AppError::NotFound,
+            std::io::ErrorKind::StorageFull => AppError::InsufficientStorage,
+            _ => AppError::IO { source },
         }
     }
 }

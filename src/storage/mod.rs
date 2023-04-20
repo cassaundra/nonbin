@@ -7,13 +7,13 @@ pub mod s3;
 
 pub trait Storage {
     /// Get an object by key.
-    async fn get_object(&mut self, key: &str) -> crate::ApiResult<Bytes>;
+    async fn get_object(&mut self, key: &str) -> crate::AppResult<Bytes>;
 
     /// Put an object's data by key.
-    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::ApiResult<()>;
+    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::AppResult<()>;
 
     /// Delete an object by key.
-    async fn delete_object(&mut self, key: &str) -> crate::ApiResult<()>;
+    async fn delete_object(&mut self, key: &str) -> crate::AppResult<()>;
 }
 
 #[derive(Clone)]
@@ -24,7 +24,7 @@ pub enum AnyStorage {
 }
 
 impl Storage for AnyStorage {
-    async fn get_object(&mut self, key: &str) -> crate::ApiResult<Bytes> {
+    async fn get_object(&mut self, key: &str) -> crate::AppResult<Bytes> {
         match self {
             AnyStorage::File(fs) => fs.get_object(key).await,
             #[cfg(feature = "s3")]
@@ -32,7 +32,7 @@ impl Storage for AnyStorage {
         }
     }
 
-    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::ApiResult<()> {
+    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::AppResult<()> {
         match self {
             AnyStorage::File(fs) => fs.put_object(key, data).await,
             #[cfg(feature = "s3")]
@@ -40,7 +40,7 @@ impl Storage for AnyStorage {
         }
     }
 
-    async fn delete_object(&mut self, key: &str) -> crate::ApiResult<()> {
+    async fn delete_object(&mut self, key: &str) -> crate::AppResult<()> {
         match self {
             AnyStorage::File(fs) => fs.delete_object(key).await,
             #[cfg(feature = "s3")]

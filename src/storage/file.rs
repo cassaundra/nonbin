@@ -28,7 +28,7 @@ impl FileStorage {
 }
 
 impl Storage for FileStorage {
-    async fn get_object(&mut self, key: &str) -> crate::ApiResult<axum::body::Bytes> {
+    async fn get_object(&mut self, key: &str) -> crate::AppResult<axum::body::Bytes> {
         assert!(!key.contains('/'));
 
         let mut buf = Vec::with_capacity(1024);
@@ -38,7 +38,7 @@ impl Storage for FileStorage {
         Ok(buf.into())
     }
 
-    async fn put_object(&mut self, key: &str, data: axum::body::Bytes) -> crate::ApiResult<()> {
+    async fn put_object(&mut self, key: &str, data: axum::body::Bytes) -> crate::AppResult<()> {
         assert!(!key.contains('/'));
 
         let mut file = fs::File::create(self.dir.join(key)).await?;
@@ -47,7 +47,7 @@ impl Storage for FileStorage {
         Ok(())
     }
 
-    async fn delete_object(&mut self, key: &str) -> crate::ApiResult<()> {
+    async fn delete_object(&mut self, key: &str) -> crate::AppResult<()> {
         assert!(!key.contains('/'));
 
         fs::remove_file(self.dir.join(key)).await?;

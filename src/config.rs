@@ -49,7 +49,7 @@ pub enum StorageKind {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Limits {
     pub max_upload_size: usize,
-    pub expiration_time: Option<u64>,
+    pub expiration_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,6 +1,6 @@
 use sqlx::AnyPool;
 
-use crate::types::Paste;
+use crate::models::Paste;
 
 #[derive(Clone)]
 pub struct Database {
@@ -16,7 +16,7 @@ impl Database {
     }
 
     /// Get all pastes.
-    pub async fn get_all_pastes(&mut self) -> crate::ApiResult<Vec<Paste>> {
+    pub async fn get_all_pastes(&mut self) -> crate::AppResult<Vec<Paste>> {
         let mut conn = self.pool.acquire().await?;
         Ok(sqlx::query_as::<_, Paste>("SELECT * FROM paste")
             .fetch_all(&mut conn)
@@ -24,7 +24,7 @@ impl Database {
     }
 
     /// Get a paste by key.
-    pub async fn get_paste(&mut self, key: &str) -> crate::ApiResult<Paste> {
+    pub async fn get_paste(&mut self, key: &str) -> crate::AppResult<Paste> {
         let mut conn = self.pool.acquire().await?;
         let paste = sqlx::query_as::<_, Paste>(
             "SELECT key, delete_key, timestamp, file_name FROM paste WHERE key = ?",
@@ -41,19 +41,22 @@ impl Database {
         key: &str,
         delete_key: &str,
         file_name: &str,
-    ) -> crate::ApiResult<()> {
+    ) -> crate::AppResult<Paste> {
         let mut conn = self.pool.acquire().await?;
-        sqlx::query("INSERT INTO paste (key, delete_key, file_name) VALUES (?, ?, ?)")
-            .bind(key)
-            .bind(delete_key)
-            .bind(file_name)
-            .execute(&mut conn)
-            .await?;
-        Ok(())
+        let paste = sqlx::query_as::<_, Paste>(
+            "INSERT INTO paste (key, delete_key, file_name) VALUES (?, ?, ?) RETURNING key, \
+             delete_key, file_name, timestamp",
+        )
+        .bind(key)
+        .bind(delete_key)
+        .bind(file_name)
+        .fetch_one(&mut conn)
+        .await?;
+        Ok(paste)
     }
 
     /// Delete a paste by key.
-    pub async fn delete_paste(&mut self, key: &str) -> crate::ApiResult<()> {
+    pub async fn delete_paste(&mut self, key: &str) -> crate::AppResult<()> {
         let mut conn = self.pool.acquire().await?;
         sqlx::query("DELETE FROM paste WHERE key = ?")
             .bind(key)

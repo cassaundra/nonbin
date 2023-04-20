@@ -32,7 +32,7 @@ impl S3Storage {
 }
 
 impl Storage for S3Storage {
-    async fn get_object(&mut self, key: &str) -> crate::ApiResult<axum::body::Bytes> {
+    async fn get_object(&mut self, key: &str) -> crate::AppResult<axum::body::Bytes> {
         let object = self
             .client
             .get_object()
@@ -45,7 +45,7 @@ impl Storage for S3Storage {
         Ok(bytes)
     }
 
-    async fn put_object(&mut self, key: &str, data: axum::body::Bytes) -> crate::ApiResult<()> {
+    async fn put_object(&mut self, key: &str, data: axum::body::Bytes) -> crate::AppResult<()> {
         self.client
             .put_object()
             .bucket(&self.bucket)
@@ -56,7 +56,7 @@ impl Storage for S3Storage {
         Ok(())
     }
 
-    async fn delete_object(&mut self, key: &str) -> crate::ApiResult<()> {
+    async fn delete_object(&mut self, key: &str) -> crate::AppResult<()> {
         self.client
             .delete_object()
             .bucket(&self.bucket)

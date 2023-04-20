@@ -18,13 +18,14 @@ use crate::words::WordLists;
 
 mod commands;
 mod config;
+mod controllers;
 mod db;
 mod error;
+mod models;
 mod storage;
-mod types;
 mod words;
 
-pub use crate::error::ApiResult;
+pub use crate::error::AppResult;
 
 #[derive(Debug, Parser)]
 #[command(color = clap::ColorChoice::Never)]
