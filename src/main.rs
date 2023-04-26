@@ -1,5 +1,6 @@
 #![feature(async_fn_in_trait)]
 #![feature(io_error_more)]
+#![feature(return_position_impl_trait_in_trait)]
 #![allow(incomplete_features)]
 
 use std::path::PathBuf;

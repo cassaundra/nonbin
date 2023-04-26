@@ -1,32 +1,39 @@
 use axum::body::Bytes;
 use chrono::{DateTime, Utc};
+use futures_util::Stream;
 use tracing::info;
 use uuid::Uuid;
 
+use crate::error::AppError;
 use crate::models::Paste;
 use crate::storage::Storage;
 use crate::words::generate_key;
-use crate::App;
+use crate::{App, AppResult};
 
-pub async fn fetch_data(app: &mut App, key: &str) -> crate::AppResult<Bytes> {
-    let data = app.storage.get_object(key).await?;
-    Ok(data)
+pub async fn fetch_data(
+    app: &mut App,
+    key: &str,
+) -> crate::AppResult<impl Stream<Item = AppResult<Bytes>>> {
+    app.storage.get_object(key).await
 }
 
-pub async fn create(app: &mut App, file_name: &str, data: Bytes) -> crate::AppResult<Paste> {
+pub async fn create<S, E>(app: &mut App, file_name: &str, data: S) -> crate::AppResult<Paste>
+where
+    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    E: Into<AppError>,
+{
     let key = generate_key(&app.word_lists);
     let delete_key = Uuid::new_v4().to_string();
 
-    info!(
-        "new paste: key='{key}', file='{file_name}', size={size}",
-        size = data.len()
-    );
+    info!("new paste: key='{key}', file='{file_name}'");
 
     let paste = app
         .database
         .insert_paste(&key, &delete_key, file_name)
         .await?;
-    app.storage.put_object(&key, data).await?;
+    let size = app.storage.put_object(&key, data).await?;
+
+    info!("size of '{key}': {size} bytes");
 
     Ok(paste)
 }

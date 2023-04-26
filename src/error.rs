@@ -10,9 +10,6 @@ use s3::types::SdkError;
 
 pub type AppResult<T> = std::result::Result<T, AppError>;
 
-#[derive(Debug)]
-pub struct NotFound;
-
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum AppError {
@@ -44,7 +41,7 @@ pub enum AppError {
     Database { source: sqlx::Error },
     #[error("IO error")]
     IO { source: std::io::Error },
-    #[error("other error")]
+    #[error("S3 error")]
     #[cfg(feature = "s3")]
     S3 {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,

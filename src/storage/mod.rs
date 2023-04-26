@@ -1,4 +1,8 @@
 use axum::body::Bytes;
+use futures_util::{Stream, StreamExt};
+
+use crate::error::AppError;
+use crate::AppResult;
 
 pub mod file;
 
@@ -7,10 +11,16 @@ pub mod s3;
 
 pub trait Storage {
     /// Get an object by key.
-    async fn get_object(&mut self, key: &str) -> crate::AppResult<Bytes>;
+    async fn get_object(
+        &mut self,
+        key: &str,
+    ) -> crate::AppResult<impl Stream<Item = AppResult<Bytes>>>;
 
     /// Put an object's data by key.
-    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::AppResult<()>;
+    async fn put_object<S, E>(&mut self, key: &str, data: S) -> crate::AppResult<usize>
+    where
+        S: Stream<Item = Result<Bytes, E>> + Unpin,
+        E: Into<AppError>;
 
     /// Delete an object by key.
     async fn delete_object(&mut self, key: &str) -> crate::AppResult<()>;
@@ -24,15 +34,22 @@ pub enum AnyStorage {
 }
 
 impl Storage for AnyStorage {
-    async fn get_object(&mut self, key: &str) -> crate::AppResult<Bytes> {
+    async fn get_object(
+        &mut self,
+        key: &str,
+    ) -> crate::AppResult<impl Stream<Item = AppResult<Bytes>>> {
         match self {
-            AnyStorage::File(fs) => fs.get_object(key).await,
+            AnyStorage::File(fs) => fs.get_object(key).await.map(StreamExt::boxed),
             #[cfg(feature = "s3")]
-            AnyStorage::S3(s3) => s3.get_object(key).await,
+            AnyStorage::S3(s3) => s3.get_object(key).await.map(StreamExt::boxed),
         }
     }
 
-    async fn put_object(&mut self, key: &str, data: Bytes) -> crate::AppResult<()> {
+    async fn put_object<S, E>(&mut self, key: &str, data: S) -> crate::AppResult<usize>
+    where
+        S: Stream<Item = Result<Bytes, E>> + Unpin,
+        E: Into<AppError>,
+    {
         match self {
             AnyStorage::File(fs) => fs.put_object(key, data).await,
             #[cfg(feature = "s3")]

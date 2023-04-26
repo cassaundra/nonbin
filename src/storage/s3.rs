@@ -1,6 +1,12 @@
 use aws_config::retry::RetryConfig;
 use aws_sdk_s3 as s3;
 
+use bytes::{Bytes, BytesMut};
+use futures_util::{Stream, TryStreamExt};
+
+use crate::error::AppError;
+use crate::AppResult;
+
 use super::Storage;
 
 #[derive(Clone)]
@@ -32,7 +38,10 @@ impl S3Storage {
 }
 
 impl Storage for S3Storage {
-    async fn get_object(&mut self, key: &str) -> crate::AppResult<axum::body::Bytes> {
+    async fn get_object(
+        &mut self,
+        key: &str,
+    ) -> crate::AppResult<impl Stream<Item = AppResult<Bytes>>> {
         let object = self
             .client
             .get_object()
@@ -40,20 +49,31 @@ impl Storage for S3Storage {
             .key(key)
             .send()
             .await?;
-        // TODO handle this error
-        let bytes = object.body.collect().await.unwrap().into_bytes();
-        Ok(bytes)
+        Ok(object.body.map_err(|e| AppError::S3 {
+            source: Box::new(e),
+        }))
     }
 
-    async fn put_object(&mut self, key: &str, data: axum::body::Bytes) -> crate::AppResult<()> {
+    async fn put_object<S, E>(&mut self, key: &str, data: S) -> crate::AppResult<usize>
+    where
+        S: Stream<Item = Result<Bytes, E>> + Unpin,
+        E: Into<AppError>,
+    {
+        // TODO figure out how to convert to ByteStream
+        let body = data
+            .try_collect::<BytesMut>()
+            .await
+            .map_err(Into::into)?
+            .freeze();
+        let size = body.len();
         self.client
             .put_object()
             .bucket(&self.bucket)
             .key(key)
-            .body(data.into())
+            .body(body.into())
             .send()
             .await?;
-        Ok(())
+        Ok(size)
     }
 
     async fn delete_object(&mut self, key: &str) -> crate::AppResult<()> {

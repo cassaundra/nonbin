@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use axum::body::Bytes;
+use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{body, Json, Router};
+use axum::{Json, Router};
 use serde_json::json;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
@@ -64,13 +64,13 @@ async fn get_paste_bare(
 async fn get_paste(
     mut app: State<App>,
     Path((key, _file_name)): Path<(String, String)>,
-) -> crate::AppResult<Response<body::Full<Bytes>>> {
+) -> crate::AppResult<Response<Body>> {
     if paste::is_expired(&mut app, &key).await? {
         return Err(AppError::NotFound);
     }
 
-    let data = paste::fetch_data(&mut app, &key).await?;
-    let response = Response::builder().body(body::Full::new(data))?;
+    let body = Body::wrap_stream(paste::fetch_data(&mut app, &key).await?);
+    let response = Response::builder().body(body)?;
 
     Ok(response)
 }
@@ -85,9 +85,8 @@ async fn upload_paste(
             .file_name()
             .ok_or_else(|| AppError::MissingFileName)?
             .to_owned();
-        let data = field.bytes().await?;
 
-        let paste = controllers::paste::create(&mut app, &file_name, data).await?;
+        let paste = controllers::paste::create(&mut app, &file_name, field).await?;
 
         let encoded_file_name = encode(&file_name);
         let path = format!("/{key}/{encoded_file_name}", key = paste.key);
