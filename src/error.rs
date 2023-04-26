@@ -2,6 +2,7 @@ use axum::extract::multipart::MultipartError;
 use axum::http::{self, StatusCode};
 use axum::response::{IntoResponse, Response};
 use thiserror::Error;
+use tracing::warn;
 
 #[cfg(feature = "s3")]
 use aws_sdk_s3 as s3;
@@ -66,7 +67,14 @@ impl IntoResponse for AppError {
             AppError::S3 { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        (status_code, format!("{self}")).into_response()
+        warn!("error during request: {self}");
+
+        let reason = status_code
+            .canonical_reason()
+            .unwrap_or("unknown error")
+            .to_lowercase();
+
+        (status_code, reason).into_response()
     }
 }
 
