@@ -5,31 +5,31 @@ edition = "2021"
 
 [dependencies]
 ansi-to-html = "0.1.3"
-anyhow = "1.0.69"
-aws-config = { version = "0.54.1", optional = true }
-aws-sdk-s3 = { version = "0.24.0", optional = true }
-axum = { version = "0.6.7", features = ["multipart", "macros", "headers"] }
+anyhow = "1.0.70"
+aws-config = { version = "0.55.1", optional = true }
+aws-sdk-s3 = { version = "0.26.0", optional = true }
+axum = { version = "0.6.17", features = ["multipart", "macros", "headers"] }
 bytes = "1.4.0"
-chrono = { version = "0.4.23", features = ["serde"] }
-clap = { version = "4.1.10", features = ["derive"] }
+chrono = { version = "0.4.24", features = ["serde"] }
+clap = { version = "4.2.4", features = ["derive"] }
 directories-next = "2.0.0"
 futures-util = "0.3.28"
 markdown = "1.0.0-alpha.8"
 rand = "0.8.5"
-serde = { version = "1.0.152", features = ["derive"] }
+serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
-sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "any", "chrono"] }
+sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "any", "chrono"] }
 textwrap = "0.16.0"
-thiserror = "1.0.38"
-tokio = { version = "1.25.0", features = ["full"] }
-tokio-stream = { version = "0.1.12", features = ["io-util"] }
+thiserror = "1.0.40"
+tokio = { version = "1.28.0", features = ["full"] }
+tokio-stream = { version = "0.1.14", features = ["io-util"] }
 tokio-util = { version = "0.7.8", features = ["codec"] }
-toml = "0.7.2"
-tower-http = { version = "0.3.5", features = ["limit", "trace"] }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+toml = "0.7.3"
+tower-http = { version = "0.4.0", features = ["limit", "trace"] }
+tracing = "0.1.38"
+tracing-subscriber = "0.3.17"
 urlencoding = "2.1.2"
-uuid = { version = "1.3.0", features = ["v4", "fast-rng"] }
+uuid = { version = "1.3.1", features = ["v4", "fast-rng"] }
 
 [features]
 default = ["sqlite"]
