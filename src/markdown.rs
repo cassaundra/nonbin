@@ -10,7 +10,20 @@ const ANSI_RESET: &str = "\x1b[0m";
 /// Render markdown to manpage-style HTML.
 pub fn markdown_to_html(source: &str) -> String {
     let rendered = ansi_to_html::convert_escaped(&markdown_to_ansi(source)).unwrap();
-    format!("<code style=\"white-space: pre\">{rendered}</code>")
+    format!(
+        r#"<!DOCTYPE html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="nonbin - a minimal paste service" />
+<title>nonbin(1)</title>
+</head>
+<body>
+<code style="white-space: pre">{rendered}</code>
+</body>
+</html>
+"#
+    )
 }
 
 /// Render markdown to manpage-style ANSI-styled text.
