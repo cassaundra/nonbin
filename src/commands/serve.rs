@@ -3,10 +3,11 @@ use std::net::SocketAddr;
 
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
+use axum::headers::{ContentType, UserAgent};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Json, Router, TypedHeader};
 use serde_json::json;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
@@ -17,10 +18,11 @@ use crate::controllers::paste;
 
 use crate::error::AppError;
 
+use crate::markdown::{markdown_to_ansi, markdown_to_html};
 use crate::{controllers, App};
 
-/// The manual for the program in man page form.
-const MAN_PAGE: &str = include_str!("../../assets/man.txt");
+/// The manual for the program written in Markdown.
+const MAN_PAGE: &str = include_str!("../../assets/man.md");
 
 pub async fn run(app: App) -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], app.config.port));
@@ -44,8 +46,17 @@ pub async fn run(app: App) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn index() -> &'static str {
-    MAN_PAGE
+async fn index(
+    TypedHeader(user_agent): TypedHeader<UserAgent>,
+) -> (TypedHeader<ContentType>, String) {
+    if let Some(("curl", _)) = user_agent.as_str().split_once('/') {
+        (
+            TypedHeader(ContentType::text_utf8()),
+            markdown_to_ansi(MAN_PAGE),
+        )
+    } else {
+        (TypedHeader(ContentType::html()), markdown_to_html(MAN_PAGE))
+    }
 }
 
 async fn get_paste_bare(

@@ -22,6 +22,7 @@ mod config;
 mod controllers;
 mod db;
 mod error;
+mod markdown;
 mod models;
 mod storage;
 mod words;
