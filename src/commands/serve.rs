@@ -7,11 +7,11 @@ use axum::headers::{ContentType, UserAgent};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{Json, Router, TypedHeader};
+use axum::{Json, Router, ServiceExt, TypedHeader};
 use serde_json::json;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::normalize_path::NormalizePath;
 use tower_http::trace::TraceLayer;
-
 use urlencoding::encode;
 
 use crate::controllers::paste;
@@ -25,17 +25,18 @@ const MAN_PAGE: &str = include_str!("../../assets/man.md");
 pub async fn run(app: App) -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], app.config.port));
 
-    let app = Router::new()
-        .route("/", get(index).post(upload_paste))
-        .route("/:id", get(get_paste_bare).delete(delete_paste))
-        .route("/:id/", get(get_paste_bare).delete(delete_paste)) // hack
-        .route("/:id/:file_name", get(get_paste))
-        .layer(DefaultBodyLimit::disable())
-        .layer(RequestBodyLimitLayer::new(
-            app.config.limits.max_upload_size,
-        ))
-        .layer(TraceLayer::new_for_http())
-        .with_state(app);
+    let app = NormalizePath::trim_trailing_slash(
+        Router::new()
+            .route("/", get(index).post(upload_paste))
+            .route("/:id", get(get_paste_bare).delete(delete_paste))
+            .route("/:id/:file_name", get(get_paste))
+            .layer(DefaultBodyLimit::disable())
+            .layer(RequestBodyLimitLayer::new(
+                app.config.limits.max_upload_size,
+            ))
+            .layer(TraceLayer::new_for_http())
+            .with_state(app),
+    );
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
