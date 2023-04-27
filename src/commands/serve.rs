@@ -15,11 +15,9 @@ use tower_http::trace::TraceLayer;
 use urlencoding::encode;
 
 use crate::controllers::paste;
-
 use crate::error::AppError;
-
 use crate::markdown::{markdown_to_ansi, markdown_to_html};
-use crate::{controllers, App};
+use crate::App;
 
 /// The manual for the program written in Markdown.
 const MAN_PAGE: &str = include_str!("../../assets/man.md");
@@ -97,7 +95,7 @@ async fn upload_paste(
             .ok_or_else(|| AppError::MissingFileName)?
             .to_owned();
 
-        let paste = controllers::paste::create(&mut app, &file_name, field).await?;
+        let paste = paste::create(&mut app, &file_name, field).await?;
 
         let encoded_file_name = encode(&file_name);
         let path = format!("/{key}/{encoded_file_name}", key = paste.key);
