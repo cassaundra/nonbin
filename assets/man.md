@@ -21,7 +21,7 @@ if successful, the server will respond with 201 Created and a JSON body like the
 ```json
 {
     "id": "<id>",
-    "url": "https://nonb.in/<id>/<file name>",
+    "url": "<file url>",
     "delete_key": "<delete key>"
 }
 ```

@@ -1,5 +1,6 @@
 use markdown::mdast::Node;
 use markdown::{to_mdast, ParseOptions};
+use regex::Regex;
 use textwrap::{fill, indent as prefix};
 
 const ANSI_BOLD: &str = "\x1b[1m";
@@ -7,9 +8,21 @@ const ANSI_ITALIC: &str = "\x1b[3m";
 
 const ANSI_RESET: &str = "\x1b[0m";
 
+// https://stackoverflow.com/a/3809435
+const URL_REGEX: &str = r"https?://(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)";
+const URL_REPLACEMENT: &str = "<a href=\"$0\">$0</a>";
+
 /// Render markdown to manpage-style HTML.
 pub fn markdown_to_html(source: &str) -> String {
     let rendered = ansi_to_html::convert_escaped(&markdown_to_ansi(source)).unwrap();
+
+    // try to linkify the rendered document
+    //
+    // note: this makes no effort to sanitize and should not be used with
+    // user-generated input
+    let re = Regex::new(URL_REGEX).unwrap();
+    let linkified = re.replace_all(&rendered, URL_REPLACEMENT);
+
     format!(
         r#"<!DOCTYPE html lang="en">
 <head>
@@ -19,7 +32,7 @@ pub fn markdown_to_html(source: &str) -> String {
 <title>nonbin(1)</title>
 </head>
 <body>
-<code style="white-space: pre">{rendered}</code>
+<code style="white-space: pre">{linkified}</code>
 </body>
 </html>
 "#
