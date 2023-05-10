@@ -1,7 +1,7 @@
 use axum::body::Bytes;
 use chrono::{DateTime, Utc};
 use futures_util::Stream;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -46,6 +46,7 @@ pub async fn delete(app: &mut App, key: &str) -> crate::AppResult<()> {
 
 pub async fn purge_expired(app: &mut App) -> crate::AppResult<()> {
     let Some(expiration_secs) = app.config.limits.expiration_secs else {
+        warn!("tried to purge expired, but no expiration limit was set");
         return Ok(());
     };
 
