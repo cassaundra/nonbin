@@ -1,0 +1,21 @@
+image: archlinux
+packages:
+  - rustup
+sources:
+  - https://git.sr.ht/~cassaundra/nonbin
+tasks:
+  - setup: |
+      rustup toolchain install nightly
+      rustup default nightly
+  - build: |
+      cd nonbin
+      cargo build
+  - test: |
+      cd nonbin
+      cargo test
+  - clippy: |
+      cd nonbin
+      cargo clippy
+  - fmt: |
+      cd nonbin
+      cargo fmt --check
