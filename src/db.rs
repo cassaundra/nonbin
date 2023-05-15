@@ -8,11 +8,11 @@ pub struct Database {
 }
 
 impl Database {
-    /// Connect to a database by URL.
+    /// Connect to a database by URL and apply pending migrations.
     pub async fn connect(url: &str) -> anyhow::Result<Self> {
-        Ok(Self {
-            pool: AnyPool::connect(url).await?,
-        })
+        let pool = AnyPool::connect(url).await?;
+        sqlx::migrate!().run(&pool).await?;
+        Ok(Self { pool })
     }
 
     /// Get all pastes.
